@@ -4334,6 +4334,10 @@ instance SerialiseAsRawBytes (Hash StakePoolKey) where
     deserialiseFromRawBytes (AsHash AsStakePoolKey) bs =
       StakePoolKeyHash . Shelley.KeyHash <$> Crypto.hashFromBytes bs
 
+instance SerialiseAsBech32 (Hash StakePoolKey) where
+    bech32PrefixFor         _ =  "pool"
+    bech32PrefixesPermitted _ = ["pool"]
+
 instance ToJSON (Hash StakePoolKey) where
     toJSON = toJSON . Text.decodeLatin1 . serialiseToRawBytesHex
 
