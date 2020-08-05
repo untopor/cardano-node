@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Cardano.CLI.Shelley.Run.Address
   ( ShelleyAddressCmdError
@@ -44,8 +45,8 @@ runAddressCmd cmd =
     AddressKeyHash vkf mOFp -> runAddressKeyHash vkf mOFp
     AddressBuild payVk stkVk nw mOutFp -> runAddressBuild payVk stkVk nw mOutFp
     AddressBuildMultiSig {} -> runAddressBuildMultiSig
+    AddressBuildScript sFp nId mOutFp -> runAddressBuildScript sFp nId mOutFp
     AddressInfo txt mOFp -> firstExceptT ShelleyAddressCmdAddressInfoError $ runAddressInfo txt mOFp
-
 
 runAddressKeyGen :: AddressKeyType
                  -> VerificationKeyFile
@@ -181,3 +182,21 @@ readAddressVerificationKeyFile (VerificationKeyFile vkfile) =
 runAddressBuildMultiSig :: ExceptT ShelleyAddressCmdError IO ()
 runAddressBuildMultiSig =
     liftIO $ putStrLn ("runAddressBuildMultiSig: TODO")
+
+--
+-- Script addresses
+--
+
+runAddressBuildScript
+  :: ScriptFile
+  -> NetworkId
+  -> Maybe OutputFile
+  -> ExceptT ShelleyAddressCmdError IO ()
+runAddressBuildScript (ScriptFile fp) nId mOutFp = do
+  script <- firstExceptT ShelleyAddressCmdReadFileError
+              . newExceptT $ readFileTextEnvelope AsScript fp
+  let payCred = PaymentCredentialByScript $ scriptHash script
+      scriptAddr = serialiseAddress $ makeShelleyAddress nId payCred NoStakeAddress
+  case mOutFp of
+    Just (OutputFile oFp) -> liftIO $ Text.writeFile oFp scriptAddr
+    Nothing -> liftIO $ Text.putStrLn scriptAddr
