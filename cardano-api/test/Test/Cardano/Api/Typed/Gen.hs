@@ -2,6 +2,9 @@ module Test.Cardano.Api.Typed.Gen
   ( genAddressByron
   , genAddressShelley
   , genByronKeyWitness
+  , genRequiredSig
+  , genMofNRequiredSig
+  , genMultiSigScript
   , genOperationalCertificate
   , genOperationalCertificateIssueCounter
   , genShelleyWitness
@@ -53,6 +56,29 @@ genKESPeriod = KESPeriod <$> Gen.word Range.constantBounded
 
 genLovelace :: Gen Lovelace
 genLovelace = Lovelace <$> Gen.integral (Range.linear 0 5000)
+
+genRequiredSig :: Gen MultiSigScript
+genRequiredSig = do
+  verKey <- genVerificationKey AsPaymentKey
+  return . RequireSignature $ verificationKeyHash verKey
+
+genAllRequiredSig :: Gen MultiSigScript
+genAllRequiredSig =
+  RequireAllOf <$> Gen.list (Range.constant 1 10) genRequiredSig
+
+genAnyRequiredSig :: Gen MultiSigScript
+genAnyRequiredSig =
+  RequireAnyOf <$> Gen.list (Range.constant 1 10) genRequiredSig
+
+genMofNRequiredSig :: Gen MultiSigScript
+genMofNRequiredSig = do
+ m <- Gen.integral (Range.linear 1 15)
+ n <- Gen.integral (Range.linear m 15)
+ RequireMOf m <$> Gen.list (Range.singleton n) genRequiredSig
+
+genMultiSigScript :: Gen MultiSigScript
+genMultiSigScript =
+  Gen.choice [genAllRequiredSig, genAnyRequiredSig, genMofNRequiredSig]
 
 genNetworkId :: Gen NetworkId
 genNetworkId =

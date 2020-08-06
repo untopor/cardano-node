@@ -57,6 +57,7 @@ library
                       , io-sim-classes
                       , iohk-monitoring
                       , iproute
+                      , megaparsec
                       , memory
                       , network
                       , network-mux
@@ -130,6 +131,7 @@ test-suite cardano-api-test
                         Test.Cardano.Api.Typed.CBOR
                         Test.Cardano.Api.Typed.Envelope
                         Test.Cardano.Api.Typed.Gen
+                        Test.Cardano.Api.Typed.MultiSigScript
                         Test.Cardano.Api.Typed.Orphans
                         Test.Cardano.Api.Typed.RawBytes
 
