@@ -34,21 +34,26 @@ data TraceSelection
   , traceBlockFetchProtocol :: !Bool
   , traceBlockFetchProtocolSerialised :: !Bool
   , traceBlockFetchServer :: !Bool
+  , traceKeepAliveClient :: !Bool
   , traceChainDB :: !Bool
   , traceChainSyncClient :: !Bool
   , traceChainSyncBlockServer :: !Bool
   , traceChainSyncHeaderServer :: !Bool
   , traceChainSyncProtocol :: !Bool
   , traceDnsResolver :: !Bool
-  , traceDnsSubscription :: !Bool
-  , traceErrorPolicy :: !Bool
   , traceForge :: !Bool
   , traceForgeStateInfo :: !Bool
   , traceHandshake :: !Bool
-  , traceIpSubscription :: !Bool
-  , traceKeepAliveClient :: !Bool
+  , traceLocalRootPeers :: !Bool
+  , tracePublicRootPeers :: !Bool
+  , tracePeerSelection :: !Bool
+  , traceDebugPeerSelection :: !Bool
+  , tracePeerSelectionActions :: !Bool
+  , traceConnectionManager :: !Bool
+  , traceServer :: !Bool
+  , traceLocalConnectionManager :: !Bool
+  , traceLocalServer :: !Bool
   , traceLocalChainSyncProtocol :: !Bool
-  , traceLocalErrorPolicy :: !Bool
   , traceLocalHandshake :: !Bool
   , traceLocalTxSubmissionProtocol :: !Bool
   , traceLocalTxSubmissionServer :: !Bool
@@ -73,21 +78,26 @@ traceConfigParser v =
     <*> v .:? "TraceBlockFetchProtocol" .!= False
     <*> v .:? "TraceBlockFetchProtocolSerialised" .!= False
     <*> v .:? "TraceBlockFetchServer" .!= False
+    <*> v .:? "TraceKeepAliveClient" .!= False
     <*> v .:? "TraceChainDb" .!= True
     <*> v .:? "TraceChainSyncClient" .!= True
     <*> v .:? "TraceChainSyncBlockServer" .!= False
     <*> v .:? "TraceChainSyncHeaderServer" .!= False
     <*> v .:? "TraceChainSyncProtocol" .!= False
     <*> v .:? "TraceDNSResolver" .!= False
-    <*> v .:? "TraceDNSSubscription" .!= True
-    <*> v .:? "TraceErrorPolicy" .!= True
     <*> v .:? "TraceForge" .!= True
     <*> v .:? "TraceForgeStateInfo" .!= True
     <*> v .:? "TraceHandshake" .!= False
-    <*> v .:? "TraceIpSubscription" .!= True
-    <*> v .:? "TraceKeepAliveClient" .!= False
+    <*> v .:? "TraceLocalRootPeers" .!= False
+    <*> v .:? "TracePublicRootPeers" .!= False
+    <*> v .:? "TracePeerSelection" .!= False
+    <*> v .:? "TraceDebugPeerSelection" .!= False
+    <*> v .:? "TracePeerSelectionActions" .!= False
+    <*> v .:? "TraceConnectionManager" .!= False
+    <*> v .:? "TraceServer" .!= False
+    <*> v .:? "TraceLocalConnectionManager" .!= False
+    <*> v .:? "TraceLocalServer" .!= False
     <*> v .:? "TraceLocalChainSyncProtocol" .!= False
-    <*> v .:? "TraceLocalErrorPolicy" .!= True
     <*> v .:? "TraceLocalHandshake" .!= False
     <*> v .:? "TraceLocalTxSubmissionProtocol" .!= False
     <*> v .:? "TraceLocalTxSubmissionServer" .!= False
