@@ -268,6 +268,12 @@ data NodeConfiguration
        , ncLoggingSwitch  :: Bool
        , ncLogMetrics     :: Bool
        , ncTraceConfig    :: TraceOptions
+
+         -- P2P governor targets
+       , ncTargetNumberOfRootPeers        :: Int
+       , ncTargetNumberOfKnownPeers       :: Int
+       , ncTargetNumberOfEstablishedPeers :: Int
+       , ncTargetNumberOfActivePeers      :: Int
        } deriving Show
 
 class AdjustFilePaths a where
@@ -316,6 +322,13 @@ instance FromJSON NodeConfiguration where
             NodeProtocolConfigurationCardano <$> parseByronProtocol v
                                              <*> parseShelleyProtocol v
                                              <*> parseHardForkProtocol v
+                                             --
+      -- P2P Governor parameters, with conservative defaults.
+      ncTargetNumberOfRootPeers        <- v .:? "TargetNumberOfRootPeers"        .!= 5
+      ncTargetNumberOfKnownPeers       <- v .:? "TargetNumberOfKnownPeers"       .!= 5
+      ncTargetNumberOfEstablishedPeers <- v .:? "TargetNumberOfEstablishedPeers" .!= 2
+      ncTargetNumberOfActivePeers      <- v .:? "TargetNumberOfActivePeers"      .!= 1
+
       pure NodeConfiguration {
              ncProtocolConfig
            , ncSocketPath
@@ -325,6 +338,10 @@ instance FromJSON NodeConfiguration where
            , ncLoggingSwitch
            , ncLogMetrics
            , ncTraceConfig
+           , ncTargetNumberOfRootPeers
+           , ncTargetNumberOfKnownPeers
+           , ncTargetNumberOfEstablishedPeers
+           , ncTargetNumberOfActivePeers
            }
     where
       parseByronProtocol v = do
