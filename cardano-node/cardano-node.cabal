@@ -85,6 +85,7 @@ library
                      , cborg >= 0.2.4 && < 0.3
                      , containers
                      , directory
+                     , dns
                      , filepath
                      , hostname
                      , iproute
@@ -166,6 +167,7 @@ library cardano-node-config
                      , cardano-prelude
                      , cardano-slotting
                      , containers
+                     , dns
                      , filepath
                      , iohk-monitoring
                      , iproute

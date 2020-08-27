@@ -47,7 +47,7 @@ data SocketConfigError
     | ClashingPublicSocketGiven
     | ClashingLocalSocketGiven
     | LocalSocketError FilePath IOException
-    | GetAddrInfoError NodeAddress IOException
+    | GetAddrInfoError NodeIPAddress IOException
   deriving Show
 
 instance Exception SocketConfigError where
