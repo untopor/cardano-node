@@ -12,10 +12,11 @@ where
 import           Cardano.Prelude hiding (local)
 import           Prelude (String)
 import qualified Prelude
+import           Data.Functor (($>))
 
 import           Control.Monad.Trans.Except.Extra (handleIOExceptT)
 import           Network.Socket (AddrInfo (..), AddrInfoFlag (..), Socket, SocketType (..),
-                     defaultHints, getAddrInfo)
+                     SockAddr (..), defaultHints, getAddrInfo, getSocketName)
 
 import           Cardano.Node.Types
 
@@ -39,6 +40,7 @@ import           System.Systemd.Daemon (getActivatedSockets)
 data SocketOrSocketInfo socket info =
        ActualSocket socket
      | SocketInfo   info
+  deriving Show
 
 -- | Errors for the current module.
 data SocketConfigError
@@ -93,43 +95,79 @@ renderSocketConfigError (GetAddrInfoError addr ex) =
 gatherConfiguredSockets :: NodeConfiguration
                         -> NodeCLI
                         -> ExceptT SocketConfigError IO
-                                   (SocketOrSocketInfo [Socket] [AddrInfo],
-                                    SocketOrSocketInfo Socket SocketPath)
+                                   (Maybe (SocketOrSocketInfo Socket AddrInfo),
+                                    Maybe (SocketOrSocketInfo Socket AddrInfo),
+                                           SocketOrSocketInfo Socket SocketPath)
 gatherConfiguredSockets config cli = do
 
     mbAllSocketsFromSystemD          <- liftIO getSystemdSockets
 
     -- Select the sockets or address for public node-to-node comms
     --
-    let mbPublicSocketsAddrFromConfigOrCLI :: Maybe NodeAddress
-        mbPublicSocketsAddrFromConfigOrCLI = nodeAddr cli
-                                             --TODO: add config file support
-        mbPublicSocketsFromSystemD         = snd <$> mbAllSocketsFromSystemD
+    let mbPublicIPv4SocketsAddrFromConfigOrCLI :: Maybe NodeIPv4Address
+        mbPublicIPv4SocketsAddrFromConfigOrCLI = nodeIPv4Addr cli
 
-    public <- case (mbPublicSocketsAddrFromConfigOrCLI,
-                    mbPublicSocketsFromSystemD) of
-                (Nothing, Just [])    -> throwError NoPublicSocketGiven
-                (Nothing, Just socks) -> return (ActualSocket socks)
-                (Just addr, Nothing)  -> SocketInfo <$> nodeAddressInfo addr
-                (Just addr, Just [])  -> SocketInfo <$> nodeAddressInfo addr
-                (Nothing, Nothing)    -> throwError NoPublicSocketGiven
-                (Just{}, Just{})      -> throwError ClashingPublicSocketGiven
+        mbPublicIPv6SocketsAddrFromConfigOrCLI :: Maybe NodeIPv6Address
+        mbPublicIPv6SocketsAddrFromConfigOrCLI = nodeIPv6Addr cli
+
+        --TODO: add config file support
+        mbPublicIPv4SocketsFromSystemD         = (\(a, _, _) -> a) <$> mbAllSocketsFromSystemD
+        mbPublicIPv6SocketsFromSystemD         = (\(_, a, _) -> a) <$> mbAllSocketsFromSystemD
+
+    ipv4Public <-
+      case ( mbPublicIPv4SocketsAddrFromConfigOrCLI,
+             mbPublicIPv4SocketsFromSystemD ) of
+
+        (Nothing, Nothing)    -> pure Nothing
+        (Nothing, Just [])    -> pure Nothing
+        (Just{}, Just{})      -> throwError ClashingPublicSocketGiven
+
+        (_, Just (sock : _)) ->
+          return (Just (ActualSocket sock))
+
+        (Just addr, _) ->
+              fmap SocketInfo . head
+          <$> nodeAddressInfo nodeHostIPv4AddressToIPAddress addr
+
+    ipv6Public <-
+      case ( mbPublicIPv6SocketsAddrFromConfigOrCLI,
+             mbPublicIPv6SocketsFromSystemD ) of
+        (Nothing, Nothing)    -> pure Nothing
+        (Nothing, Just [])    -> pure Nothing
+        (Just{}, Just{})      -> throwError ClashingPublicSocketGiven
+
+        (_, Just (sock : _)) ->
+          return (Just (ActualSocket sock))
+
+        (Just addr, _) ->
+                fmap SocketInfo . head
+            <$> nodeAddressInfo nodeHostIPv6AddressToIPAddress addr
+
+    case (ipv4Public, ipv6Public) of
+      (Nothing, Nothing) -> throwError NoPublicSocketGiven
+      _                  -> pure ()
+
 
     -- Select the socket or path for local node-to-client comms
     --
     let mbLocalSocketFileConfigOrCLI  = socketFile cli `mplus`
                                         ncSocketPath config
-        mbLocalSocketFromSystemD      = fst <$> mbAllSocketsFromSystemD
+        mbLocalSocketFromSystemD      = (\(_, _, a) -> a) <$> mbAllSocketsFromSystemD
 
-    local  <- case (mbLocalSocketFileConfigOrCLI,
-                    mbLocalSocketFromSystemD) of
-                (Nothing, Just sock) -> return (ActualSocket sock)
-                (Just path, Nothing) -> do removeStaleLocalSocket path
-                                           return (SocketInfo path)
-                (Nothing, Nothing)   -> throwError NoLocalSocketGiven
-                (Just{}, Just{})     -> throwError ClashingLocalSocketGiven
+    local  <-
+      case ( mbLocalSocketFileConfigOrCLI,
+             mbLocalSocketFromSystemD ) of
+        (Nothing, Nothing)   -> throwError NoLocalSocketGiven
+        (Nothing, Just [])   -> throwError NoLocalSocketGiven
+        (Just{}, Just{})     -> throwError ClashingLocalSocketGiven
 
-    return (public, local)
+        (_, Just (sock : _)) ->
+          return (ActualSocket sock)
+
+        (Just path, _) ->
+          removeStaleLocalSocket path $> SocketInfo path
+
+    return (ipv4Public, ipv6Public, local)
 
 
 -- | Binding a local unix domain socket always expects to create it, and fails
@@ -147,11 +185,14 @@ removeStaleLocalSocket (SocketPath path) =
                                  else throwIO e
 #endif
 
-nodeAddressInfo :: NodeAddress -> ExceptT SocketConfigError IO [AddrInfo]
-nodeAddressInfo addr@(NodeAddress hostAddr port) =
-    handleIOExceptT (GetAddrInfoError addr) $
+nodeAddressInfo :: Show addr
+                => (addr -> NodeHostIPAddress)
+                -> NodeAddress' addr
+                -> ExceptT SocketConfigError IO [AddrInfo]
+nodeAddressInfo mkHostAddr (NodeAddress hostAddr port) =
+    handleIOExceptT (GetAddrInfoError $ (NodeAddress (mkHostAddr hostAddr) port)) $
       getAddrInfo (Just hints)
-                  (fmap Prelude.show $ unNodeHostAddress hostAddr)
+                  (Just $ Prelude.show hostAddr)
                   (Just $ Prelude.show port)
   where
     hints = defaultHints {
@@ -160,18 +201,25 @@ nodeAddressInfo addr@(NodeAddress hostAddr port) =
             }
 
 
--- | Possibly return a SOCKET_UNIX socket for NodeToClient communication
--- and a list of SOCKET_STREAM sockets for NodeToNode communication.
--- The SOCKET_UNIX socket should be defined first in the `.socket` systemd file.
+-- | Possibly return systemd-activated sockets.  Splits the sockets into three
+-- groups:'AF_INET' and 'AF_INET6', 'AF_UNIX'. 
 --
-getSystemdSockets :: IO (Maybe (Socket, [Socket]))
+getSystemdSockets :: IO (Maybe ([Socket], [Socket], [Socket]))
 #ifdef SYSTEMD
 getSystemdSockets = do
   sds_m <- getActivatedSockets
   case sds_m of
-       Nothing       -> return Nothing
-       Just []       -> return Nothing
-       Just (sd:sds) -> return $ Just (sd, sds)
+       Nothing    -> return Nothing
+       Just socks ->
+         Just <$>
+          foldM (\(ipv4s, ipv6s, unixs) sock -> do
+                  addr <- getSocketName sock
+                  case addr of
+                    SockAddrInet {}  -> return (sock : ipv4s,        ipv6s,        unixs)
+                    SockAddrInet6 {} -> return (       ipv4s, sock : ipv6s,        unixs)
+                    SockAddrUnix {}  -> return (       ipv4s,        ipv6s, sock : unixs))
+                ([], [], [])
+                socks
 #else
 getSystemdSockets = return Nothing
 #endif
