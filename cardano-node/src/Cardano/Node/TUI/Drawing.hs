@@ -51,7 +51,6 @@ data LiveViewState blk a = LiveViewState
   { lvsScreen               :: !Screen
   , lvsRelease              :: !String
   , lvsProtocol             :: !Protocol
-  , lvsNodeId               :: !Text
   , lvsVersion              :: !String
   , lvsCommit               :: !String
   , lvsPlatform             :: !String
@@ -166,8 +165,6 @@ headerW p =
            ,   withAttr releaseAttr
              $ str (lvsRelease p)
            , padLeft Max $ txt "Node: "
-           ,   withAttr nodeIdAttr
-             $ txt (lvsNodeId p)
            ]
 
 keysMessageW :: Widget ()

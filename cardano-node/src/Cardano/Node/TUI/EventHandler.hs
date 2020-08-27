@@ -356,7 +356,6 @@ initLiveViewState = do
                 { lvsScreen                 = MainView
                 , lvsRelease                = "Release not set yet"
                 , lvsProtocol               = CardanoProtocol -- Needs a real value. Will be overwritten later.
-                , lvsNodeId                 = "NodeId not set yet"
                 , lvsVersion                = showVersion version
                 , lvsCommit                 = Text.unpack gitRev
                 , lvsPlatform               = "Platform not set yet"
