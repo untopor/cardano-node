@@ -3,7 +3,9 @@
 module Cardano.Node.Configuration.Topology
   ( TopologyError(..)
   , NetworkTopology(..)
-  , NodeHostAddress(..)
+  , NodeHostIPAddress(..)
+  , NodeHostIPv4Address(..)
+  , NodeHostIPv6Address(..)
   , NodeSetup(..)
   , RemoteAddress(..)
   , nodeAddressToSockAddr
@@ -20,77 +22,80 @@ import qualified Control.Exception as Exception
 import           Data.Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.IP as IP
 import qualified Data.Text as Text
-import           Network.Socket (PortNumber, SockAddr (..))
+import           Network.Socket (PortNumber)
 import           Text.Read (readMaybe)
 
 import           Cardano.Node.Types
 
+import           Ouroboros.Network.NodeToNode (PeerAdvertise (..))
 import           Ouroboros.Consensus.Util.Condense (Condense (..))
 
 
+-- TODO: remove this type
 newtype TopologyError
   = NodeIdNotFoundInToplogyFile FilePath
   deriving Show
 
-nodeAddressToSockAddr :: NodeAddress -> SockAddr
-nodeAddressToSockAddr (NodeAddress addr port) =
-  case unNodeHostAddress addr of
-    Just (IP.IPv4 ipv4) -> SockAddrInet port $ IP.toHostAddress ipv4
-    Just (IP.IPv6 ipv6) -> SockAddrInet6 port 0 (IP.toHostAddress6 ipv6) 0
-    Nothing             -> SockAddrInet port 0 -- Could also be any IPv6 addr
-
 -- | Domain name with port number
 --
 data RemoteAddress = RemoteAddress
-  { raAddress :: !String
+  { raAddress   :: !Text
   -- ^ either a dns address or ip address
-  , raPort :: !PortNumber
+  , raPort      :: !PortNumber
   -- ^ port number of the destination
-  , raValency :: !Int
-  -- ^ if a dns address is given valency governs
-  -- to how many resolved ip addresses
-  -- should we maintain acctive (hot) connection;
-  -- if an ip address is given valency is used as
-  -- a boolean value, @0@ means to ignore the address;
+  , raAdvertise :: !Bool
+  -- ^ advertise the peer through gossip protocol
   } deriving (Eq, Ord, Show)
 
 
 -- | Parse 'raAddress' field as an IP address; if it parses and the valency is
 -- non zero return corresponding NodeAddress.
 --
-remoteAddressToNodeAddress :: RemoteAddress-> Maybe NodeAddress
-remoteAddressToNodeAddress (RemoteAddress addrStr port val) =
-  case readMaybe addrStr of
-    Nothing -> Nothing
-    Just addr -> if val /= 0
-                 then Just $ NodeAddress (NodeHostAddress $ Just addr) port
-                 else Nothing
+remoteAddressToNodeAddress
+  :: RemoteAddress
+  -> Either (NodeIPAddress,  PeerAdvertise)
+            (NodeDnsAddress, PeerAdvertise)
+remoteAddressToNodeAddress (RemoteAddress addrText port advertise) =
+    case readMaybe (Text.unpack addrText) of
+      Nothing   -> Right (NodeAddress (NodeHostDnsAddress addrText) port, advertisePeer)
+      Just addr -> Left  (NodeAddress (NodeHostIPAddress addr) port     , advertisePeer)
+  where
+    advertisePeer =
+      if advertise 
+        then DoAdvertisePeer
+        else DoNotAdvertisePeer
 
 
 instance Condense RemoteAddress where
-  condense (RemoteAddress addr port val) =
-    addr ++ ":" ++ show port ++ " (" ++ show val ++ ")"
+  condense (RemoteAddress addr port adv) =
+    concat
+      [ Text.unpack addr
+      , ":"
+      , show port
+      , " "
+      , if adv then "(advertise)" else "(no-advertise)"
+      ]
 
 instance FromJSON RemoteAddress where
   parseJSON = withObject "RemoteAddress" $ \v ->
     RemoteAddress
       <$> v .: "addr"
       <*> ((fromIntegral :: Int -> PortNumber) <$> v .: "port")
-      <*> v .: "valency"
+      <*> v .: "advertise"
 
 instance ToJSON RemoteAddress where
   toJSON ra =
     object
-      [ "addr" .= raAddress ra
-      , "port" .= (fromIntegral (raPort ra) :: Int)
-      , "valency" .= raValency ra
+      [ "addr"      .= raAddress ra
+      , "port"      .= (fromIntegral (raPort ra) :: Int)
+      , "advertise" .= raAdvertise ra
       ]
 
 data NodeSetup = NodeSetup
   { nodeId :: !Word64
-  , nodeAddress :: !NodeAddress
+  , nodeIPv4Address :: !(Maybe NodeIPv4Address)
+  , nodeIPv6Address :: !(Maybe NodeIPv6Address)
   , producers :: ![RemoteAddress]
   } deriving (Eq, Show)
 
@@ -98,14 +103,16 @@ instance FromJSON NodeSetup where
   parseJSON = withObject "NodeSetup" $ \o ->
                 NodeSetup
                   <$> o .: "nodeId"
-                  <*> o .: "nodeAddress"
+                  <*> o .: "nodeIPv4Address"
+                  <*> o .: "nodeIPv6Address"
                   <*> o .: "producers"
 
 instance ToJSON NodeSetup where
   toJSON ns =
     object
       [ "nodeId" .= nodeId ns
-      , "nodeAddress" .= nodeAddress ns
+      , "nodeIPv4Address" .= nodeIPv4Address ns
+      , "nodeIPv6Address" .= nodeIPv6Address ns
       , "producers" .= producers ns
       ]
 
