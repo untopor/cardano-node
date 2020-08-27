@@ -11,7 +11,6 @@ module Cardano.Node.TUI.Run
     ) where
 
 import           Cardano.Prelude hiding (modifyMVar_, newMVar, on, readMVar, show)
-import           Prelude (show)
 
 import           Control.Concurrent (threadDelay)
 import qualified Control.Concurrent.Async as Async
@@ -19,7 +18,6 @@ import           Control.Concurrent.MVar.Strict (modifyMVar_)
 
 import           Control.Monad (forever)
 import           Data.Text (Text)
-import qualified Data.Text as Text
 
 import           Cardano.BM.Counters (readCounters)
 import           Cardano.BM.Data.Backend
@@ -38,19 +36,12 @@ import           Cardano.Node.Types
 
 -- | Change a few fields in the LiveViewState after it has been initialized above.
 liveViewPostSetup :: NFData a => LiveViewBackend blk a -> NodeCLI -> NodeConfiguration-> IO ()
-liveViewPostSetup lvbe ncli nc = do
+liveViewPostSetup lvbe _ncli nc = do
     modifyMVar_ (getbe lvbe) $ \lvs ->
       pure lvs
-            { lvsNodeId = nodeId
-            , lvsProtocol = ncProtocol nc
+            { lvsProtocol = ncProtocol nc
             , lvsRelease = protocolName (ncProtocol nc)
             }
- where
-    --TODO: this is meaningless. Nodes do not have ids. The port number is not
-    -- an ID. We don't even have a port number that we know if we're given our
-    -- listening socket via systemd socket activation.
-    nodeId :: Text
-    nodeId = Text.pack $ "Port: " <> maybe "-" show (naPort <$> nodeAddr ncli)
 
 setNodeThread :: NFData a => LiveViewBackend blk a -> Async.Async () -> IO ()
 setNodeThread lvbe nodeThr =
