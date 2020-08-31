@@ -16,7 +16,7 @@ import           Data.Functor (($>))
 
 import           Control.Monad.Trans.Except.Extra (handleIOExceptT)
 import           Network.Socket (AddrInfo (..), AddrInfoFlag (..), Socket, SocketType (..),
-                     SockAddr (..), defaultHints, getAddrInfo, getSocketName)
+                     defaultHints, getAddrInfo)
 
 import           Cardano.Node.Types
 
