@@ -6,6 +6,7 @@ module Cardano.Api.MetaData
   , jsonToMetadataValue
   , renderMetaDataJsonConversionError
   , bytesPrefix
+  , maxStringSize
   ) where
 
 import           Cardano.Prelude hiding (MetaData)
