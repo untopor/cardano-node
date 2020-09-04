@@ -2,7 +2,9 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Cardano.Tracing.Render
-  ( renderHeaderHash
+  ( renderBlockOrEBB
+  , renderChunkNo
+  , renderHeaderHash
   , renderHeaderHashForVerbosity
   , renderPoint
   , renderPointAsPhrase
@@ -12,6 +14,7 @@ module Cardano.Tracing.Render
   , renderSlotNo
   , renderTip
   , renderTipForVerbosity
+  , renderTipInfo
   , renderTxId
   , renderTxIdForVerbosity
   , renderWithOrigin
@@ -25,12 +28,34 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 
 import           Cardano.BM.Tracing (TracingVerbosity (..))
-import           Cardano.Slotting.Slot (SlotNo (..), WithOrigin (..))
+import           Cardano.Slotting.Slot (EpochNo (..), SlotNo (..), WithOrigin (..))
 import           Cardano.Tracing.ConvertTxId (ConvertTxId (..))
 import           Ouroboros.Consensus.Block (ConvertRawHash (..), RealPoint (..))
 import           Ouroboros.Consensus.Block.Abstract (Point (..))
 import           Ouroboros.Consensus.Ledger.SupportsMempool (GenTx, TxId)
+import           Ouroboros.Consensus.Storage.ImmutableDB.Chunks.Internal (ChunkNo (..))
+import           Ouroboros.Consensus.Storage.ImmutableDB.Types (BlockOrEBB (..), TipInfo (..))
 import           Ouroboros.Network.Block (HeaderHash, Tip, getTipPoint)
+
+renderBlockOrEBB :: BlockOrEBB -> Text
+renderBlockOrEBB (Block slotNo) = "Block at " <> renderSlotNo slotNo
+renderBlockOrEBB (EBB epochNo) = "Epoch boundary block at " <> renderEpochNo epochNo
+
+renderChunkNo :: ChunkNo -> Text
+renderChunkNo = Text.pack . show . unChunkNo
+
+renderEpochNo :: EpochNo -> Text
+renderEpochNo = Text.pack . show . unEpochNo
+
+renderTipInfo :: TipInfo hash a -> (hash -> Text ) -> (a -> Text) -> Text
+renderTipInfo _tInfo _renderHash _renderA = panic "Fill me in"
+{-
+data TipInfo hash a = TipInfo
+  { tipInfoHash    :: !hash
+  , forgetTipInfo  :: !a
+  , tipInfoBlockNo :: !BlockNo
+  } deriving (Eq, Show, Generic, NoUnexpectedThunks, Functor, Foldable, Traversable)
+-}
 
 renderTxIdForVerbosity
   :: ConvertTxId blk
